@@ -11,6 +11,7 @@ typedef struct {
     ngx_flag_t secure;
     ngx_flag_t samesite;
     ngx_flag_t samesite_lax;
+    ngx_flag_t samesite_none;
     ngx_flag_t samesite_strict;
 } ngx_http_cookie_t;
 
@@ -164,6 +165,7 @@ ngx_http_cookie_flag_filter_cmd(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     cookie->secure = 0;
     cookie->samesite = 0;
     cookie->samesite_lax = 0;
+    cookie->samesite_none = 0;
     cookie->samesite_strict = 0;
 
     // normalize and check 2nd and 3rd parameters
@@ -176,6 +178,8 @@ ngx_http_cookie_flag_filter_cmd(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             cookie->samesite = 1;
         } else if (ngx_strncasecmp(value[i].data, (u_char *) "samesite=lax", 12) == 0 && value[i].len == 12) {
             cookie->samesite_lax = 1;
+        } else if (ngx_strncasecmp(value[i].data, (u_char *) "samesite=none", 13) == 0 && value[i].len == 13) {
+            cookie->samesite_none = 1;
         } else if (ngx_strncasecmp(value[i].data, (u_char *) "samesite=strict", 15) == 0 && value[i].len == 15) {
             cookie->samesite_strict = 1;
         } else {
@@ -277,6 +281,16 @@ ngx_http_cookie_flag_filter_append(ngx_http_request_t *r, ngx_http_cookie_t *coo
         header->value.len = tmp.len;
     }
 
+    if (cookie->samesite_none == 1 && ngx_strcasestrn(header->value.data, "; SameSite=None", 15 - 1) == NULL) {
+        tmp.data = ngx_pnalloc(r->pool, header->value.len + sizeof("; SameSite=None") - 1);
+        if (tmp.data == NULL) {
+            return NGX_ERROR;
+        }
+        tmp.len = ngx_sprintf(tmp.data, "%V; SameSite=None", &header->value) - tmp.data;
+        header->value.data = tmp.data;
+        header->value.len = tmp.len;
+    }
+
     if (cookie->samesite_strict == 1 && ngx_strcasestrn(header->value.data, "; SameSite=Strict", 17 - 1) == NULL) {
         tmp.data = ngx_pnalloc(r->pool, header->value.len + sizeof("; SameSite=Strict") - 1);
         if (tmp.data == NULL) {
@@ -365,3 +379,4 @@ ngx_http_cookie_flag_filter_handler(ngx_http_request_t *r)
 
     return ngx_http_next_header_filter(r);
 }
+
